@@ -25,7 +25,7 @@ En este caso, realizaremos una comparación entre **Cortex XDR** y **CrowdStrike
 
 Un punto interesante que se observa en la comparación es que **ninguna de las dos soluciones controla completamente el `Process Call Stack`**, lo que puede limitar la visibilidad profunda en ataques que manipulan el flujo de ejecución a nivel de sistema
 
-![[Pasted image 20250828205134.png]]
+![](Imagenes/imagen1.png)
 
 Esto implica que no supervisan de forma exhaustiva todas las llamadas que se producen dentro de una función, lo cual representa una limitación común entre ambos productos.
 
@@ -58,15 +58,15 @@ Podemos seguir explorando subcategorías no aplicadas. Se observa que **ninguno 
 
 ¿Quieres que lo formatee para incluirlo en un informe técnico o presentación? También puedo ayudarte a traducirlo si lo necesitas en inglés.
 
-![[Pasted image 20250828232413.png]]
+![](Imagenes/imagen2.png)
 
 Crowd Strike no analiza Registry Activity 
 
-![[Pasted image 20250828233201.png]]
+![](Imagenes/imagen3.png)
 
 No analiza al Cien por ciento los servicios que se tiene activos 
 
-![[Pasted image 20250828234230.png]]
+![](Imagenes/imagen4.png)
 
 En este punto sabemos que tipo de maneras podemos utilizar para intentar hacer un bypass, para lo cual voy a intentar utilizar diferentes tipos de ofuscacion en los AV/EDR que tengo disponibles 
 
@@ -86,78 +86,77 @@ Ahora si ejecutamos directamente este script sin contexto alguno cualquier AV/ E
 
 Podemos realizar este tipo de ofuscación utilizando repositorios de github, en mi caso he elegido por utilizar `psobf`.
 
-![[Pasted image 20250830090522.png]]
+![](Imagenes/imagen5.png)
 
 Utilizamos virus total y observamos que ningún AV/EDR detecta actividad maliciosa dentro del archivo ps1, por lo cual podríamos decir que esta todo okey que ya se ha pasado todos los AV/EDR
 
-![[Pasted image 20250830090716.png]]
+![](Imagenes/imagen6.png)
 
 Ahora vamos a replicar este escenario en un entorno donde tengamos instalado Kaspersky, replicamos la misma metodología de ofuscación estática, dinámica y conexiones benignas, en este escenario si podemos ejecutar scripts desde la consola, observamos que a pesar que hayamos replicado los pasos no obtenemos conexión sino todo lo contrario `Kasperky` bloquea el intento de conexión.
 
-![[Pasted image 20250830090841.png]]
+![](Imagenes/imagen7.png)
 
 Pues en este punto se puede pensar en ejecutar en memoria como lo hicimos con el script anterior no obstante lo vuelve a bloquear, esto sucede ya que la opcion dinamica que utiliza el ofuscador de archivo powershell shell llama a `Invoke-Expresion`
 el cual muchos AV/EDR tienen ganchos
 
-![[Pasted image 20250831120609.png]]
+![](Imagenes/imagen8.png)
 
 ## Replicamos el escenario en Windows defender
 
 La conexión benigna sigue siendo la misma, utilizamos la misma herramienta en para ofuscar el código y pasarlo a una maquina que tiene el Windows Defender a Tope 
 
-![[Pasted image 20250830094502.png]]
+![](Imagenes/imagen9.png)
 
 Cabe aclarar que los AV/EDR no detectan al archivo como malicioso de primeras ya que muchas de estas soluciones no contemplan la descarga de archivos como maliciosa y otras que si 
 
-![[Pasted image 20250830094625.png]]
+![](Imagenes/imagen10.png)
 
 Tenemos nuestra conexión final hecha y es hora de obtener una reverse shell 
 
 Observamos que el Windows Defender no lo detecta 
 
-![[Pasted image 20250830094848.png]]
+![](Imagenes/imagen11.png)
 
 # Borrando keys evadiendo AMSI
 
 Primero verificamos que efectivamente no nos deje descargar herramientas como mimikatz, Rubeus o simplemente un script de conexión benigna 
 
-![[Pasted image 20250831114734.png]]
+![](Imagenes/imagen12.png)
 
 Es fácilmente identificado 
 
-![[Pasted image 20250830140838.png]]
+![](Imagenes/imagen13.png)
 
 Vamos a utilizar la herramienta [TrollDisappearKey](https://github.com/cybersectroll/TrollDisappearKey?utm_source=chatgpt.com)
 , que permite **modificar o bloquear entradas específicas de AMSI** para evitar que Windows cargue ciertos proveedores de seguridad. Funciona creando **hooks en la función `RegOpenKeyEx`**, lo que permite filtrar, bloquear o modificar el acceso a las claves de registro asociadas con AMSI, evitando la detección de scripts maliciosos y permitiendo avanzar hacia objetivos como la persistencia de manera controlada. En nuestro laboratorio aprovechamos PowerShell para hacer **reflective loading en memoria**, descargando el código C# con `Invoke-WebRequest`, compilándolo con `Add-Type` y ejecutando `[TrollDisappearKeyPS]::DisappearKey()`, que hookea `RegOpenKeyEx` y desactiva AMSI en la sesión mediante `Uninitialize`. Todo esto ocurre **en memoria**, sin escribir archivos en disco, **minimizando la posibilidad de detección por AV/EDR** y permitiendo ejecutar scripts posteriores libremente.
 
 Primero, descargamos el código fuente de `TrollDisappearKeyPS.cs` desde nuestro servidor y lo convertimos a UTF-8 para asegurar su correcta interpretación en PowerShell. Luego, con `Add-Type -TypeDefinition`, compilamos el código directamente en memoria, cargando la clase `[TrollDisappearKeyPS]` sin generar archivos en disco, manteniendo todo en **memory-only execution**. Finalmente, al ejecutar `[TrollDisappearKeyPS]::DisappearKey()`, se crea un hook en `RegOpenKeyExW` que intercepta intentos de abrir claves de registro de AMSI, bloqueando o modificando su información para que AMSI no pueda cargar sus proveedores de seguridad. 
 
-![[Pasted image 20250830135935.png]]
+![](Imagenes/imagen14.png)
 
 Este paso es crucial porque AMSI es la defensa principal de Windows contra scripts maliciosos; al desactivarlo, cualquier código que ejecutemos después no será bloqueado por el antivirus en memoria.
 
-![[Pasted image 20250830140241.png]]
+![](Imagenes/imagen15.png)
 
 Finalmente, descargamos y ejecutamos la reverse shell con `Invoke-Expression` directamente desde memoria usando `DownloadString`. El script establece una conexión TCP hacia nuestro C2, crea objetos `StreamReader` y `StreamWriter` para enviar y recibir datos, ejecuta los comandos que enviamos desde el C2 y devuelve la salida en tiempo real. Este enfoque **memory-only** asegura que la shell funcione sin dejar rastros en disco y permite pruebas de laboratorio efectivas y sigilosas, combinando AMSI bypass y control remoto completo.
 
-![[Captura de pantalla 2025-08-30 134103.png]]
+![](Imagenes/imagen16.png)
 
 ## Pruebas en Kasperky y Windows 11
 
 Primero intentamos descargar Rubeus para ver si bloquea 
 
-
-![[Pasted image 20250830144700.png]]
+![](Imagenes/imagen17.png)
 
 Y pues si lo cataloga como Trojano, entonces compilamos nuestro Troll
 
 Para un equipo que corre windows 11 el repositorio cuanta con un archivo con la extension .cs para ser compilado utilizamos visual studio y se genera el archivo sin problema lo cual ya nos da un buen inicio que no lo detecta como malicioso 
 
-![[Pasted image 20250830143913.png]]
+![](Imagenes/imagen18.png)
 
 No obstante utilizando las misma técnica observamos que claramente Kaspersky bloquea la llamada 
 
-![[Pasted image 20250830145757.png]]
+![](Imagenes/imagen19.png)
 
 # Ofuscación Polimórfica
 
@@ -167,24 +166,23 @@ Para lo cual vamos a utilizar herramientas como `AlphabeticalPolyShellGen` el cu
 
 Esta herramienta básicamente nos permite reducir significativamente el peso de nuestro archivo binario 
 
-![[Pasted image 20250830173607.png]]
-
+![](Imagenes/imagen20.png)
 
 Pero justamente solo tenemos un archivo binario casi que indectectable, como primera prueba hemos creado una archivo que solo ejecute una calculadora 
 
-![[Pasted image 20250830173852.png]]
+![](Imagenes/imagen21.png)
 
 Utilizamos .\AlphabeticalPolyGen.exe para generar nuestro archivo binario ofuscado 
 
-![[Pasted image 20250830174017.png]]
+![](Imagenes/imagen22.png)
 
 Verificamos que realmente este archivo no sea detectado estáticamente 
 
-![[Pasted image 20250830174143.png]]
+![](Imagenes/imagen23.png)
 
 No es detectable ahora lo ejecutamos en un equipo que utilice Kasperky
 
-![[Imagen de WhatsApp 2025-08-30 a las 16.39.13_2157d82a.jpg]]
+![](Imagenes/imagen24.png)
 
 Y pues si no es detectado, pero encontramos un pequeño gran problema que al ser un archivo binario depende de archivo que lo haga ejecutar para lo cual .\LocalShellcodeExec es detectable por varios antivirus en este caso no es detectable para panda, kasperky ni Windows Defender por lo cual es una mini victoria
 
@@ -228,40 +226,40 @@ $hThread = [CT]::CreateThread([IntPtr]::Zero, 0, $addr, [IntPtr]::Zero, 0, [IntP
 
 Sin embargo este script sigue siendo limitado pues 10 soluciones lo encuentran como malicioso
 
-![[Pasted image 20250830174919.png]]
+![](Imagenes/imagen25.png)
 
 Pero no lo detecta windows defender por lo cual vamos a intentar bypassear el defender 
 
-![[Captura de pantalla 2025-08-30 164359.png]]
+![](Imagenes/imagen26.png)
 
 Se ejecuta correctamente, ahora debemos encontrar la manera de hacerlo mas facil de entregar e intentar utilizar memoria y no disco
 
 Ahora vamos a probar el mismo script en Windows en un entorno que limita el script de powershell
 
-![[Pasted image 20250830192810.png]]
+![](Imagenes/imagen27.png)
 
 Esto lo podemos intentar bypasear con powershell ise, lastimosamente no funciono 
 
-![[Pasted image 20250830193059.png]]
+![](Imagenes/imagen28.png)
 
 No obstante cuando utilizamos `LocalShellcodeExec` para obtener una reverse shell funciona ya que `LocalShellcodeExec` es detectable solo en 10 AV/EDR ya que de por si no hace nada malicioso 
 
-![[Captura de pantalla 2025-08-31 100813.png]]
+![](Imagenes/imagen29.png)
 
 Entonces generamos un binario que se conecte a cualquier C2 o Metasploit en mi caso, lo que vamos a realizar una reverse shell que tenga una conexion diferente y no meterpreter ya que este es detectado facilmente por los AV/edr
 
-![[Captura de pantalla 2025-08-30 214713.png]]
+![](Imagenes/imagen30.png)
 
 Como sabemos este binario es fácilmente detectable y ahi es donde utilizamos AlphabeticalPolyGen, para ofuscar este binario y utilizar otro totalmente diferente 
 
 Ejecutamos con el AV/EDR activo y tenemso conexion 
 
-![[Captura de pantalla 2025-08-30 214844.png]]
+![](Imagenes/imagen31.png)
 
 
 En metasploit es necesario utilizar stages para que no se carge directamente el payload malicioso en el archivo binario si no que lo haga cuando encuentre conexion 
 
-![[Captura de pantalla 2025-08-30 214648.png]]
+![](Imagenes/imagen32.png)
 
 Ahora observamos que efectivamente tenemos una reverse shell efectiva 
 
@@ -269,7 +267,7 @@ En este punto es importante generar persistencia ya que al ser un EDR este tiend
 
 Otra técnica que estoy generando es ofuscar el `LocalShellcodeExec` ya que soluciones mucho mas sofisticadas, lo detectan facilmente 
 
-![[Pasted image 20250831113548.png]]
+![](Imagenes/imagen33.png)
 
 # Conclusión
 
