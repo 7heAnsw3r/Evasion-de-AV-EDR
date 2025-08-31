@@ -252,7 +252,7 @@ Entonces generamos un binario que se conecte a cualquier C2 o Metasploit en mi c
 
 Como sabemos este binario es fácilmente detectable y ahi es donde utilizamos AlphabeticalPolyGen, para ofuscar este binario y utilizar otro totalmente diferente 
 
-Ejecutamos con el AV/EDR activo y tenemso conexion 
+Ejecutamos con el AV/EDR activo y tenemos conexión
 
 ![](Imagenes/imagen31.png)
 
