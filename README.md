@@ -12,6 +12,8 @@ Durante las pruebas se implementaron distintos métodos de ejecución y ofuscaci
     
 - La comparación de múltiples AV/EDR evidenció que no todos reaccionan de la misma forma. Algunos motores (ej. Panda, VirusTotal) no marcan los binarios como maliciosos, mientras que otros con heurísticas más estrictas (ej. Kaspersky) los detectan incluso cuando las cargas son benignas.
 
+- `El archivo output_shellcode solo abre una calculadora`
+
 # Comparación rápida entre soluciones EDR
 
 En el siguiente sitio podemos visualizar y comparar el nivel de cobertura que ofrecen distintas soluciones de seguridad en sistemas Windows:  
@@ -268,6 +270,17 @@ En este punto es importante generar persistencia ya que al ser un EDR este tiend
 Otra técnica que estoy generando es ofuscar el `LocalShellcodeExec` ya que soluciones mucho mas sofisticadas, lo detectan facilmente 
 
 ![](Imagenes/imagen33.png)
+
+Por ultimo se ha realizado un ejecutable de shellcode en python que por ahora es detectable solo en kasperky
+
+![](Imagenes/imagen34.png)
+
+Ejecucion del ejecutable 
+
+![](Imagenes/imagen35.png)
+
+El codigo en primera instancia no esta ofuscado aun asi no lo encuentra como malicioso del todo, vamos a ofuscar este
+codigo en `pyarmor`, para tener un ejecutable y una version ofuscada del codigo en python 
 
 # Conclusión
 
